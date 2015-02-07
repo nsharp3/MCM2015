@@ -1,0 +1,7 @@
+=== Data sources ===
+
+Ocean data:
+  RTOFS Data from NOAA
+  see  http://polar.ncep.noaa.gov/global/examples/usingpython.shtml
+
+
