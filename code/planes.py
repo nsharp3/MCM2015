@@ -24,6 +24,10 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
 unguided_crash_mean = 200*10^3  # The mean of the normal distribution for the unguided crash sites
 unguided_crash_dev = 300*10^3   # The devitaion of the normal distribution for the unguided crash sites
+Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
+alpha = 0	# Proportion of debris that floats after an "intact" type crash
+search_plane_visibility = .95	# Probability that a search plane will spot debris in its area
+search_plane_depth = .5 	# Parameter to control the cubic decrase in a search plane's usefulness of spotting underwater (intact) crash
 
 def main():
 
@@ -147,7 +151,6 @@ def calc_init_values(dim, source, target):
     
     print("=== Calculating values")
 
-
     # The 
 
 
@@ -162,6 +165,33 @@ def calc_init_values_unguided(dim, source, target):
 
 
 
+# Calculate probabilities of finding the crash with a search plane
+# Returns a lat x lon array with the probabilities of finding the
+# crash in that area
+def search_plane_probabilities(dim, crash_probabilities, depth_data):
+
+    print("=== Calculating search plane probabilities")
+
+    p_lat = np.linspace(dim.lat_min, dim.lat_max, dim.lat_res)
+    p_lon = np.linspace(dim.lon_min, dim.lon_max, dim.lon_res)
+
+    search_probabilities = np.ones((dim.lat_res, dim.lon_res)) * float('inf')
+
+    for i in range(dim.lat_res):
+        for j in range(dim.lon_res):
+        	Pr_locating_given_crash_and_intact_at_surface = (1-alpha)*search_plane_visibility
+        	Pr_locating_given_crash_and_intact_at_depth = alpha*(1 / (1 + search_plane_depth*pow(depth_data[i,j],3)))
+        	Pr_locating_given_crash_and_intact = Pr_locating_given_crash_and_intact_at_depth + \
+        										 Pr_locating_given_crash_and_intact_at_surface
+        	Pr_locating_given_crash_and_destructive = search_plane_visibility
+            
+            search_probabilities[i,j] = (Pr_locating_given_crash_and_intact * Pr_intact) + \
+            							(Pr_locating_given_crash_and_destructive * (1-Pr_intact))
+
+
+    print("=== Done calculating search plane probabilities")
+
+    return search_probabilities
 
 if __name__ == "__main__":
     main()
