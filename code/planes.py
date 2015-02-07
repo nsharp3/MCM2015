@@ -27,22 +27,20 @@ def main():
     ## Problem parameters
     
     # The intended flight
-    source = Point(4.7,93.6)
-
-    target = Point(15.6,112.3)
+    source = Point(14.7,100.6)
+    target = Point(-3.6,105.3)
     
     # The problem domain and resolution
     lat_min = -10
     lat_max = 20
     lon_min = 90
     lon_max = 120
-    lat_res = 500
-    lon_res = 500
+    lat_res = 100
+    lon_res = 100
     dim = Dimension(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
 
     # Airport locations
     airports = get_airports(dim)
-
 
 
     ## Run calculations to evaluate the problem
@@ -62,24 +60,36 @@ def main():
     ax = fig.add_axes([0.1,0.1,0.8,0.8])
     
     
-    # create polar stereographic Basemap instance.
+    # create Basemap instance.
     m = Basemap(projection='mill',\
                 llcrnrlat=lat_min,urcrnrlat=lat_max,\
                 llcrnrlon=lon_min,urcrnrlon=lon_max,\
                 resolution='l')
-    
-    m.fillcontinents()
+   
+    m.fillcontinents(zorder=1)
     m.drawcoastlines()
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
     m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-   
+    
+    # Draw the line representing the flight
+    (xSource, ySource) = m(source.lon, source.lat)
+    (xTarget, yTarget) = m(target.lon, target.lat)
+    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+    
+    # Draw dots on airports
+    aptCoords = [(p.lon, p.lat) for p in airports]
+    aptCoords = np.array(aptCoords)
+    x, y = m(aptCoords[:,0], aptCoords[:,1])
+    m.scatter(x, y, 30, marker='s', color='red', zorder=5)
+
+
     # Draw a contour map of costs
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
-
-
     cs = m.contourf(x, y, costs)
+
+    
     plt.show()
 
 
@@ -87,10 +97,11 @@ def get_airports(dim):
 
     #TODO dummy data for now
     airports = []
-
-    airports.append(Point(4.7,93.6))
-    airports.append(Point(15.6,112.3))
-    airports.append(Point(8.8, 111.2))
+    
+    airports.append(Point(14.7,100.6))
+    airports.append(Point(-3.6,105.3))
+    airports.append(Point(2.8, 115.2))
+    airports.append(Point(13.8, 93.2))
 
     return airports
 
