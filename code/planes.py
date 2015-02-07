@@ -165,28 +165,31 @@ def calc_init_values_unguided(dim, source, target):
 
 
 
-# Calculate probabilities of finding the crash with a search plane
+# Calculate probabilities of finding the crash with a search vehicle
 # Returns a lat x lon array with the probabilities of finding the
 # crash in that area
-def search_plane_probabilities(dim, crash_probabilities, depth_data):
+def search_probabilities(dim_m, crash_probabilities, depth_data, p_surface_viz, p_depth_viz):
 
-    print("=== Calculating search plane probabilities")
+    print("=== Calculating search vehicle probabilities")
 
-    search_probabilities = np.ones((dim.lat_res, dim.lon_res)) * float('inf')
+    search_probabilities = np.ones((dim_m.y_res, dim_m.x_res)) * float('inf')
 
-    for i in range(dim.lat_res):
-        for j in range(dim.lon_res):
-        	Pr_locating_given_crash_and_intact_at_surface = (1-p_debris_float)*search_plane_visibility
-        	Pr_locating_given_crash_and_intact_at_depth = p_debris_float*(1 / (1 + search_plane_depth*pow(depth_data[i,j],3)))
+    for i in range(dim_m.y_res):
+        for j in range(dim_m.x_res):
+        	# At an (x,y), compute the probability of locating the crash
+        	Pr_locating_given_crash_and_intact_at_surface = (1-p_debris_float) * p_surface_viz
+        	Pr_locating_given_crash_and_intact_at_depth = p_debris_float*(1 / (1 + p_depth_viz*pow(depth_data[i,j],3)))
         	Pr_locating_given_crash_and_intact = Pr_locating_given_crash_and_intact_at_depth + \
         										 Pr_locating_given_crash_and_intact_at_surface
-        	Pr_locating_given_crash_and_destructive = search_plane_visibility
+        	Pr_locating_given_crash_and_destructive = p_surface_viz
             
-            search_probabilities[i,j] = (Pr_locating_given_crash_and_intact * Pr_intact) + \
+            Pr_locating_given_crash = (Pr_locating_given_crash_and_intact * Pr_intact) + \
             							(Pr_locating_given_crash_and_destructive * (1-Pr_intact))
+            
+            search_probabilities[i,j] = Pr_locating_given_crash * crash_probabilities[i,j]
 
 
-    print("=== Done calculating search plane probabilities")
+    print("=== Done calculating search vehicle probabilities")
 
     return search_probabilities
 
