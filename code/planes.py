@@ -16,11 +16,14 @@ from mpl_toolkits.basemap import Basemap, cm
 
 
 Point = namedtuple('Point', 'lat lon')
-Dimension = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res')
+Dimension = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res') # in lat/lon
+Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') # in meters
 
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
+unguided_crash_mean = 200*10^3  # The mean of the normal distribution for the unguided crash sites
+unguided_crash_dev = 300*10^3   # The devitaion of the normal distribution for the unguided crash sites
 
 def main():
 
@@ -38,6 +41,19 @@ def main():
     lat_res = 100
     lon_res = 100
     dim = Dimension(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
+    
+    # create Basemap instance.
+    m = Basemap(projection='mill',\
+                llcrnrlat=lat_min,urcrnrlat=lat_max,\
+                llcrnrlon=lon_min,urcrnrlon=lon_max,\
+                resolution='l')
+
+    # Convert the problem domain to meters
+    x_min, y_min = m(lon_min, lat_min)
+    x_max, y_max = m(lon_max, lat_max)
+    dim_m = Dimension_m(y_min, y_max, lat_res, x_min, x_max, lon_res)
+    source_m = (m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
+    target_m = (m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
 
     # Airport locations
     airports = get_airports(dim)
@@ -46,10 +62,9 @@ def main():
     ## Run calculations to evaluate the problem
     print("=== Evaluating problem\n")
 
-
     costs = calc_costs(dim, airports)
 
-    init_vals = calc_init_values()
+    init_vals = calc_init_values(dim_m, source_m, target_m)
    
 
     
@@ -57,14 +72,7 @@ def main():
     
     # Set up the figure
     fig = plt.figure(figsize=(8,8))
-    ax = fig.add_axes([0.1,0.1,0.8,0.8])
-    
-    
-    # create Basemap instance.
-    m = Basemap(projection='mill',\
-                llcrnrlat=lat_min,urcrnrlat=lat_max,\
-                llcrnrlon=lon_min,urcrnrlon=lon_max,\
-                resolution='l')
+    ax = fig.add_axes([0.1,0.1,0.8,0.8])    
    
     m.fillcontinents(zorder=1)
     m.drawcoastlines()
@@ -134,10 +142,24 @@ def calc_costs(dim, airports):
 
 # Calculate the probability that the plane is in each area
 # Returns a lat x lon array with the likelihood that the plane
-# crashed in that area
-def calc_init_values():
+# crashed in that area 
+def calc_init_values(dim, source, target):
     
     print("=== Calculating values")
+
+
+    # The 
+
+
+def calc_init_values_unguided(dim, source, target):
+
+    print("=== Calculating unguided values")
+
+    p_x = np.linspace(dim.x_min, dim.x_max, dim.x_res)
+    p_y = np.linspace(dim.y_min, dim.y_max, dim.y_res)
+
+    probs = np.zeros((dim.x_res, dim.y_res))
+
 
 
 
