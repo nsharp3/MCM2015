@@ -21,14 +21,15 @@ from shapely.geometry import LineString
 from shapely.geometry import Point
 
 
-Point = namedtuple('Point', 'lat lon')
-Dimension = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res') # in lat/lon
+Point_l = namedtuple('Point', 'lat lon')
+Point_m = namedtuple('Point_m', 'y x')
+Dimension_l = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res') # in lat/lon
 Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') # in meters
 
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
-unguided_crash_dev = 300*10^3   # The devitaion of the normal distribution for the unguided crash sites
+unguided_crash_dev = 100000*10^3   # The devitaion of the normal distribution for the unguided crash sites
 Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
 search_plane_visibility = .95	# Probability that a search plane will spot debris in its area
@@ -39,8 +40,8 @@ def main():
     ## Problem parameters
     
     # The intended flight
-    source = Point(14.7,100.6)
-    target = Point(-3.6,105.3)
+    source = Point_l(14.7,100.6)
+    target = Point_l(-3.6,105.3)
     
     # The problem domain and resolution
     lat_min = -10
@@ -49,7 +50,7 @@ def main():
     lon_max = 120
     lat_res = 100
     lon_res = 100
-    dim = Dimension(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
+    dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
     # create Basemap instance.
     m = Basemap(projection='mill',\
@@ -61,8 +62,8 @@ def main():
     x_min, y_min = m(lon_min, lat_min)
     x_max, y_max = m(lon_max, lat_max)
     dim_m = Dimension_m(y_min, y_max, lat_res, x_min, x_max, lon_res)
-    source_m = (m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
-    target_m = (m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
+    source_m = Point_m(m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
+    target_m = Point_m(m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
 
     # Airport locations
     airports = get_airports(dim)
@@ -73,7 +74,7 @@ def main():
 
     costs = calc_costs(dim, airports)
 
-    init_vals = calc_init_values(dim_m, source_m, target_m)
+    init_vals = calc_init_values(dim_m, source_m, target_m, m)
    
     
     
@@ -83,7 +84,7 @@ def main():
     fig = plt.figure(figsize=(8,8))
     ax = fig.add_axes([0.1,0.1,0.8,0.8])    
    
-    m.fillcontinents(zorder=1)
+    #m.fillcontinents(zorder=1)
     m.drawcoastlines()
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
@@ -102,11 +103,19 @@ def main():
 
 
     # Draw a contour map of costs
+    '''
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
     cs = m.contourf(x, y, init_vals)
+    '''
 
-    
+    # Draw a contour map of probabilities
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+    x, y = np.meshgrid(p_x, p_y)
+    cs = m.contourf(x, y, init_vals, cmap="Blues")
+    cbar = m.colorbar(cs,location='bottom',pad="5%")
+
     plt.show()
 
 
@@ -115,10 +124,10 @@ def get_airports(dim):
     #TODO dummy data for now
     airports = []
     
-    airports.append(Point(14.7,100.6))
-    airports.append(Point(-3.6,105.3))
-    airports.append(Point(2.8, 115.2))
-    airports.append(Point(13.8, 93.2))
+    airports.append(Point_l(14.7,100.6))
+    airports.append(Point_l(-3.6,105.3))
+    airports.append(Point_l(2.8, 115.2))
+    airports.append(Point_l(13.8, 93.2))
 
     return airports
 
@@ -152,13 +161,34 @@ def calc_costs(dim, airports):
 # Calculate the probability that the plane is in each area
 # Returns a lat x lon array with the likelihood that the plane
 # crashed in that area 
-def calc_init_values(dim, source, target):
+def calc_init_values(dim_m, source, target, m):
     
     print("=== Calculating values")
 
-    prob_unguided = calc_init_values_unguided(dim, source, target)
+    prob_unguided = calc_init_values_unguided(dim_m, source, target)
+    mask_and_normalize_probs(dim_m, prob_unguided, m)
 
     return prob_unguided
+
+# Take a probability map over the search area. Set all areas on land to
+# 0 and normalize the rest to sum to 1.
+# Modifies the input data
+def mask_and_normalize_probs(dim_m, probs, m):
+
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+   
+    sumProb = 0
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            if(m.is_land(p_y[j], p_x[i])):
+                probs[i,j] = 0
+
+            sumProb += probs[i,j]
+
+    probs = probs * (1 / sumProb)
 
 
 def calc_init_values_unguided(dim, source, target):
@@ -170,7 +200,7 @@ def calc_init_values_unguided(dim, source, target):
 
     probs = np.zeros((dim.x_res, dim.y_res))
 
-    flightLine = LineString[(source.x, source.y), (target.x, target.y)]
+    flightLine = LineString([(source.x, source.y), (target.x, target.y)])
     
     # Compute area statistics along each element
     dX = p_x[1] - p_x[0]
@@ -183,8 +213,8 @@ def calc_init_values_unguided(dim, source, target):
 
     distrib = scipy.stats.norm(0, unguided_crash_dev)
     
-    for i in range(dim.lat_res):
-        for j in range(dim.lon_res):
+    for i in range(dim.x_res):
+        for j in range(dim.y_res):
             
             # Coordinates of this point
             pX = p_x[i]
@@ -192,12 +222,12 @@ def calc_init_values_unguided(dim, source, target):
 
             dist = Point(pX,pY).distance(flightLine)
 
-            prob = dAlongLine / flightLine.length * \
-                (distrib.cdf(dist + 0.5 * dPerpLine) + distrib.cdf(dist - 0.5 * dPerpLine))
+            prob = (dAlongLine / flightLine.length) * \
+                (distrib.cdf(dist + 0.5 * dPerpLine) - distrib.cdf(dist - 0.5 * dPerpLine))
 
             probs[i,j] = prob
 
-    return prob
+    return probs
 
 # Calculate probabilities of locating the crash with a search vehicle
 # Returns a lat x lon array with the probabilities of locating the
