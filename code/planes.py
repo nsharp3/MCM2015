@@ -16,42 +16,59 @@ from mpl_toolkits.basemap import Basemap, cm
 
 
 Point = namedtuple('Point', 'lat lon')
-Dimension = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res')
+Dimension = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max lon_res') # in lat/lon
+Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') # in meters
 
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
+unguided_crash_mean = 200*10^3  # The mean of the normal distribution for the unguided crash sites
+unguided_crash_dev = 300*10^3   # The devitaion of the normal distribution for the unguided crash sites
+Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
+p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
+search_plane_visibility = .95	# Probability that a search plane will spot debris in its area
+search_plane_depth = .5 	# Parameter to control the cubic decrase in a search plane's usefulness of spotting underwater (intact) crash
 
 def main():
 
     ## Problem parameters
     
     # The intended flight
-    source = Point(4.7,93.6)
-
-    target = Point(15.6,112.3)
+    source = Point(14.7,100.6)
+    target = Point(-3.6,105.3)
     
     # The problem domain and resolution
     lat_min = -10
     lat_max = 20
     lon_min = 90
     lon_max = 120
-    lat_res = 500
-    lon_res = 500
+    lat_res = 100
+    lon_res = 100
     dim = Dimension(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
+    
+    # create Basemap instance.
+    m = Basemap(projection='mill',\
+                llcrnrlat=lat_min,urcrnrlat=lat_max,\
+                llcrnrlon=lon_min,urcrnrlon=lon_max,\
+                resolution='l')
+
+    # Convert the problem domain to meters
+    x_min, y_min = m(lon_min, lat_min)
+    x_max, y_max = m(lon_max, lat_max)
+    dim_m = Dimension_m(y_min, y_max, lat_res, x_min, x_max, lon_res)
+    source_m = (m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
+    target_m = (m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
 
     # Airport locations
     airports = get_airports(dim)
 
 
-
     ## Run calculations to evaluate the problem
     print("=== Evaluating problem\n")
 
-
     costs = calc_costs(dim, airports)
 
-    init_vals = calc_init_values()
+    init_vals = calc_init_values(dim_m, source_m, target_m)
    
 
     
@@ -59,27 +76,32 @@ def main():
     
     # Set up the figure
     fig = plt.figure(figsize=(8,8))
-    ax = fig.add_axes([0.1,0.1,0.8,0.8])
-    
-    
-    # create polar stereographic Basemap instance.
-    m = Basemap(projection='mill',\
-                llcrnrlat=lat_min,urcrnrlat=lat_max,\
-                llcrnrlon=lon_min,urcrnrlon=lon_max,\
-                resolution='l')
-    
-    m.fillcontinents()
+    ax = fig.add_axes([0.1,0.1,0.8,0.8])    
+   
+    m.fillcontinents(zorder=1)
     m.drawcoastlines()
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
     m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-   
+    
+    # Draw the line representing the flight
+    (xSource, ySource) = m(source.lon, source.lat)
+    (xTarget, yTarget) = m(target.lon, target.lat)
+    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+    
+    # Draw dots on airports
+    aptCoords = [(p.lon, p.lat) for p in airports]
+    aptCoords = np.array(aptCoords)
+    x, y = m(aptCoords[:,0], aptCoords[:,1])
+    m.scatter(x, y, 30, marker='s', color='red', zorder=5)
+
+
     # Draw a contour map of costs
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
-
-
     cs = m.contourf(x, y, costs)
+
+    
     plt.show()
 
 
@@ -87,10 +109,11 @@ def get_airports(dim):
 
     #TODO dummy data for now
     airports = []
-
-    airports.append(Point(4.7,93.6))
-    airports.append(Point(15.6,112.3))
-    airports.append(Point(8.8, 111.2))
+    
+    airports.append(Point(14.7,100.6))
+    airports.append(Point(-3.6,105.3))
+    airports.append(Point(2.8, 115.2))
+    airports.append(Point(13.8, 93.2))
 
     return airports
 
@@ -123,12 +146,52 @@ def calc_costs(dim, airports):
 
 # Calculate the probability that the plane is in each area
 # Returns a lat x lon array with the likelihood that the plane
-# crashed in that area
-def calc_init_values():
+# crashed in that area 
+def calc_init_values(dim, source, target):
     
     print("=== Calculating values")
 
+    # The 
 
+
+def calc_init_values_unguided(dim, source, target):
+
+    print("=== Calculating unguided values")
+
+    p_x = np.linspace(dim.x_min, dim.x_max, dim.x_res)
+    p_y = np.linspace(dim.y_min, dim.y_max, dim.y_res)
+
+    probs = np.zeros((dim.x_res, dim.y_res))
+
+
+
+# Calculate probabilities of finding the crash with a search vehicle
+# Returns a lat x lon array with the probabilities of finding the
+# crash in that area
+def search_probabilities(dim_m, crash_probabilities, depth_data, p_surface_viz, p_depth_viz):
+
+    print("=== Calculating search vehicle probabilities")
+
+    search_probabilities = np.ones((dim_m.y_res, dim_m.x_res)) * float('inf')
+
+    for i in range(dim_m.y_res):
+        for j in range(dim_m.x_res):
+        	# At an (x,y), compute the probability of locating the crash
+        	Pr_locating_given_crash_and_intact_at_surface = (1-p_debris_float) * p_surface_viz
+        	Pr_locating_given_crash_and_intact_at_depth = p_debris_float*(1 / (1 + p_depth_viz*pow(depth_data[i,j],3)))
+        	Pr_locating_given_crash_and_intact = Pr_locating_given_crash_and_intact_at_depth + \
+        										 Pr_locating_given_crash_and_intact_at_surface
+        	Pr_locating_given_crash_and_destructive = p_surface_viz
+            
+            Pr_locating_given_crash = (Pr_locating_given_crash_and_intact * Pr_intact) + \
+            							(Pr_locating_given_crash_and_destructive * (1-Pr_intact))
+            
+            search_probabilities[i,j] = Pr_locating_given_crash * crash_probabilities[i,j]
+
+
+    print("=== Done calculating search vehicle probabilities")
+
+    return search_probabilities
 
 if __name__ == "__main__":
     main()
