@@ -199,10 +199,10 @@ def calc_init_values_unguided(dim, source, target):
 
     return prob
 
-# Calculate probabilities of finding the crash with a search vehicle
-# Returns a lat x lon array with the probabilities of finding the
-# crash in that area
-def search_probabilities(dim_m, crash_probabilities, depth_data, p_surface_viz, p_depth_viz):
+# Calculate probabilities of locating the crash with a search vehicle
+# Returns a lat x lon array with the probabilities of locating the
+# crash in those areas
+def search_probabilities(dim_m, srfc_probabilities, snkn_probabilities, depth_data, p_surface_viz, p_snkn_viz):
 
     print("=== Calculating search vehicle probabilities")
 
@@ -212,15 +212,10 @@ def search_probabilities(dim_m, crash_probabilities, depth_data, p_surface_viz, 
         for j in range(dim_m.x_res):
             
             # At an (x,y), compute the probability of locating the crash
-            Pr_locating_given_crash_and_intact_at_surface = (1-p_debris_float) * p_surface_viz
-            Pr_locating_given_crash_and_intact_at_depth = p_debris_float*(1 / (1 + p_depth_viz*pow(depth_data[i,j],3)))
-            Pr_locating_given_crash_and_intact = Pr_locating_given_crash_and_intact_at_depth + Pr_locating_given_crash_and_intact_at_surface
-
-            Pr_locating_given_crash_and_destructive = p_surface_viz
-            
-            Pr_locating_given_crash = (Pr_locating_given_crash_and_intact * Pr_intact) + (Pr_locating_given_crash_and_destructive * (1-Pr_intact))
-            
-            search_probabilities[i,j] = Pr_locating_given_crash * crash_probabilities[i,j]
+            Pr_locating_given_srfc = p_surface_viz
+            Pr_locating_given_snkn = p_surface_viz / (1 + p_depth_viz*pow(depth_data[i,j],3))
+            search_probabilities[i,j] = Pr_locating_given_srfc * srfc_probabilities[i,j] + \
+                                        Pr_locating_given_snkn * snkn_probabilities[i,j]
 
 
     print("=== Done calculating search vehicle probabilities")
