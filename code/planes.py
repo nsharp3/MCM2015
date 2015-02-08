@@ -11,8 +11,14 @@ from collections import namedtuple
 from math import sqrt
 
 import numpy as np
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap, cm
+
+import scipy.stats
+
+from shapely.geometry import LineString
+from shapely.geometry import Point
 
 
 Point = namedtuple('Point', 'lat lon')
@@ -22,7 +28,6 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
-unguided_crash_mean = 200*10^3  # The mean of the normal distribution for the unguided crash sites
 unguided_crash_dev = 300*10^3   # The devitaion of the normal distribution for the unguided crash sites
 Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
@@ -70,7 +75,7 @@ def main():
 
     init_vals = calc_init_values(dim_m, source_m, target_m)
    
-
+    
     
     ## Plot
     
@@ -99,7 +104,7 @@ def main():
     # Draw a contour map of costs
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
-    cs = m.contourf(x, y, costs)
+    cs = m.contourf(x, y, init_vals)
 
     
     plt.show()
@@ -151,7 +156,9 @@ def calc_init_values(dim, source, target):
     
     print("=== Calculating values")
 
-    # The 
+    prob_unguided = calc_init_values_unguided(dim, source, target)
+
+    return prob_unguided
 
 
 def calc_init_values_unguided(dim, source, target):
@@ -163,7 +170,34 @@ def calc_init_values_unguided(dim, source, target):
 
     probs = np.zeros((dim.x_res, dim.y_res))
 
+    flightLine = LineString[(source.x, source.y), (target.x, target.y)]
+    
+    # Compute area statistics along each element
+    dX = p_x[1] - p_x[0]
+    dY = p_y[1] - p_y[0]
 
+    # Transform the element areas to be along the line
+    th = np.arctan2(abs(target.y - source.y), abs(source.x - target.x))
+    dAlongLine = np.cos(th)*dX + np.sin(th)*dY
+    dPerpLine = np.sin(th)*dX + np.cos(th)*dY
+
+    distrib = scipy.stats.norm(0, unguided_crash_dev)
+    
+    for i in range(dim.lat_res):
+        for j in range(dim.lon_res):
+            
+            # Coordinates of this point
+            pX = p_x[i]
+            pY = p_x[j]
+
+            dist = Point(pX,pY).distance(flightLine)
+
+            prob = dAlongLine / flightLine.length * \
+                (distrib.cdf(dist + 0.5 * dPerpLine) + distrib.cdf(dist - 0.5 * dPerpLine))
+
+            probs[i,j] = prob
+
+    return prob
 
 # Calculate probabilities of finding the crash with a search plane
 # Returns a lat x lon array with the probabilities of finding the
@@ -179,7 +213,7 @@ def search_plane_probabilities(dim, crash_probabilities, depth_data):
         	Pr_locating_given_crash_and_intact_at_surface = (1-p_debris_float)*search_plane_visibility
         	Pr_locating_given_crash_and_intact_at_depth = p_debris_float*(1 / (1 + search_plane_depth*pow(depth_data[i,j],3)))
         	Pr_locating_given_crash_and_intact = Pr_locating_given_crash_and_intact_at_depth + \
-        										 Pr_locating_given_crash_and_intact_at_surface
+                                                Pr_locating_given_crash_and_intact_at_surface
         	Pr_locating_given_crash_and_destructive = search_plane_visibility
             
             search_probabilities[i,j] = (Pr_locating_given_crash_and_intact * Pr_intact) + \
