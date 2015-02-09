@@ -36,8 +36,6 @@ Dimension_l = namedtuple('Dimension', 'lat_min lat_max lat_res lon_min lon_max l
 Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') # in meters
 
 # Constants that define the problem
-# TODO resolve the problem of defining distance over lat/lon
-cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
 unguided_crash_dev = 1000.0*(10**3)   # The devitaion of the normal distribution for the unguided crash sites
 p_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 #p_intact = 1.0 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
@@ -59,17 +57,21 @@ def main():
     ## Problem parameters
     
     # The intended flight
-    source = Point_l(14.7,100.6)
-    target = Point_l(-3.6,105.3)
+    #source = Point_l(14.7,100.6)
+    #target = Point_l(-3.6,105.3)
+    source = Point_l( -5.083052, 119.606448 ) # Our start
+    target = Point_l( 13.610979, 100.753909 ) # Our end
     
     # The problem domain and resolution
+    '''
     lat_min = -10.0
     lat_max = 20.0
     lon_min = 90.0
     lon_max = 120.0
     lat_res = 150 
     lon_res = 150
-    
+    '''
+
     # Rectangle
     '''
     lat_min = 20
@@ -79,6 +81,14 @@ def main():
     lat_res = 200 
     lon_res = 200
     '''
+    
+    # Case study
+    lat_min = -10
+    lat_max = 20
+    lon_min = 90
+    lon_max = 130
+    lat_res = 400 
+    lon_res = 400
 
     dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
@@ -112,12 +122,14 @@ def main():
     print("\n=== Evaluating problem\n")
 
     # Calculate costs
+    '''
     costs_sp = calc_costs_sp(dim_m, airports_m)
     costs_sb = calc_costs_sb(dim_m)
 
     init_vals = calc_init_values(dim_m, source_m, target_m, airports_m, m)
     sink_crash = p_intact * init_vals
     surface_crash = (1 - p_intact) * init_vals
+    '''
     
     # Useful things for later plotting
     (xSource, ySource) = m(source.lon, source.lat)
@@ -128,7 +140,6 @@ def main():
     xA, yA = m(aptCoords[:,0], aptCoords[:,1])
     
     ## Plot
-    '''
     # Set up the figure
     fig = plt.figure(figsize=(8,8))
     ax = fig.add_axes([0.1,0.1,0.8,0.8])    
@@ -137,23 +148,25 @@ def main():
     m.drawcoastlines()
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
-    m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
+    #m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
 
     # Draw the line representing the flight
-    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+    #m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
 
     # Draw dots on airports
-    m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
+    #m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
 
 
     # Draw a contour map of costs
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
-    cs = m.contourf(x, y, costs_sp)
-    cbar = m.colorbar(cs,location='bottom',pad="5%")
+    #cs = m.contourf(x, y, depth_m, 50, cmap='Blues_r')
+    #pc = m.pcolormesh(x, y, depth_m)
+    mag = np.sqrt(U_m*U_m + V_m*V_m)
+    pc = m.pcolormesh(x, y, mag, cmap='Blues_r')
+    #cbar = m.colorbar(pc,location='bottom',pad="5%")
     plt.show()
     return
-    '''
 
     # Draw a contour map of probabilities
     p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)

@@ -43,18 +43,34 @@ def get_airports(dim):
     #TODO dummy data for now
     airports = []
    
-    
+    '''
     airports.append(Point_l(14.7,100.6))
     airports.append(Point_l(-3.6,105.3))
     airports.append(Point_l(4.3, 97.5))
     airports.append(Point_l(2.8, 115.2))
     airports.append(Point_l(13.8, 93.2))
-    
+    '''
+
     '''
     # Other dummy data
     airports.append(Point_l(25.0,145.0))
     airports.append(Point_l(35.0,155.0))
     '''
+
+    # Case study data
+    airports.append(Point_l(3.1387103, 101.682099528432)) # Takeoff, kuala lumpur
+    #airports.append(Point_l(39.9059093, 116.3913489))  # Landing
+    #airports.append(Point_l(3.5896654, 98.6738261))
+    #airports.append(Point_l(5.8927453, 95.3225751))
+    airports.append(Point_l(4.2166144, 100.6952825))
+    airports.append(Point_l(7.715984, 98.322126372155))
+    airports.append(Point_l(7.065145, 125.561038))
+    airports.append(Point_l( 5.886214, 116.046878 ))
+    airports.append(Point_l( -8.746963, 115.189944 ))
+    airports.append(Point_l( -5.083052, 119.606448 )) # Our start
+    airports.append(Point_l( 13.610979, 100.753909 ) ) # Our end
+    #airports.append(Point_l(  ))
+    #airports.append(Point_l(  ))
 
     return airports
 
@@ -93,8 +109,8 @@ def get_currents(dim_m, dim_l, m):
     
     # Interpolators for the data
     print("Creating interpolators")
-    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0), kind='quintic')
-    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0), kind='quintic')
+    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0), kind='cubic')
+    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0), kind='cubic')
 
     # Output meshes
     print("Generating output meshes")
@@ -110,20 +126,14 @@ def get_currents(dim_m, dim_l, m):
     for i in range(dim_m.x_res):
         for j in range(dim_m.y_res):
 
-            if(not m.is_land(p_y[j], p_x[i])):
+            #if(not m.is_land(p_y[j], p_x[i])):
 
-                lat, lon = m(p_y[j], p_x[i], inverse=True)
+                lon, lat = m(p_x[i], p_y[j], inverse=True)
                 
-                Udata[i,j] = interpU(lat, lon) * conv
-                Vdata[i,j] = interpV(lat, lon) * conv
+                Udata[j,i] = interpU(lon, lat) * conv
+                Vdata[j,i] = interpV(lon, lat) * conv
 
 
-    # TODO FIXME FIXME
-    #Udata = Udata * 0
-    #Udata = np.ones(Udata.shape) * Vdata.mean() * 40
-    #Vdata = np.ones(Vdata.shape) * Vdata.mean() * 40
-    #Vdata = Vdata * 0
-    
     # Account for the corrdinate change
     return Vdata, Udata
 
@@ -157,6 +167,7 @@ def get_depths(dim_l, dim_m, m):
         print("Done downloading.")
 
         data = StringIO.StringIO(response.read())
+        print(data)
          
         r = csv.DictReader(data,dialect=csv.Sniffer().sniff(data.read(1000)))
         data.seek(0)
@@ -184,7 +195,7 @@ def get_depths(dim_l, dim_m, m):
         lonPts = set(lon)
         latPts = sorted([x for x in latPts])
         lonPts = sorted([x for x in lonPts])
-       
+
         latIndDict = {}
         lonIndDict = {}
         for ind,val in enumerate(latPts):
@@ -200,8 +211,8 @@ def get_depths(dim_l, dim_m, m):
             lonInd = lonIndDict[lon[i]]
             latInd = latIndDict[lat[i]]
             topoPts[latInd,lonInd] = topo[i]
-
-         
+        
+ 
         # Make an empty 'dictionary'... place the 3 grids in it.
         TOPO = {}
         TOPO['lats']=latPts
@@ -214,15 +225,14 @@ def get_depths(dim_l, dim_m, m):
         print("Data cached for later use")
      
     TOPO = pickle.load(open(cacheFilename,'r'))
+    print("Loading cache file " + cacheFilename)
     latPts = TOPO['lats']
     lonPts = TOPO['lons']
     topoPts = TOPO['topo']
 
-    # Translate to x/y grid for our problem
-    
     # Interpolators for the data
     print("Creating interpolators")
-    interp = interpolate.interp2d(lonPts, latPts, topoPts, kind='linear')
+    interp = interpolate.interp2d(lonPts, latPts, topoPts, kind='cubic')
 
     # Output meshes
     print("Generating output mesh")
@@ -236,11 +246,13 @@ def get_depths(dim_l, dim_m, m):
     for i in range(dim_m.x_res):
         for j in range(dim_m.y_res):
 
-            if(not m.is_land(p_y[j], p_x[i])):
+            #if(not m.is_land(p_y[j], p_x[i])):
 
-                lat, lon = m(p_y[j], p_x[i], inverse=True)
+                lon, lat = m(p_x[i], p_y[j], inverse=True)
                 
-                data[i,j] = min(interp(lat, lon),0)
+                #data[i,j] = min(interp(lat, lon),0)
+                data[j,i] = min(interp(lon, lat),0)
+
 
 
     return data
