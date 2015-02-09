@@ -15,6 +15,7 @@ from crashing import*
 # Python utilities
 from collections import namedtuple
 from math import sqrt
+from math import isnan 
 
 # External libraries
 import numpy as np
@@ -37,16 +38,23 @@ def get_airports(dim):
 
     #TODO dummy data for now
     airports = []
+   
     
     airports.append(Point_l(14.7,100.6))
     airports.append(Point_l(-3.6,105.3))
     airports.append(Point_l(4.3, 97.5))
     airports.append(Point_l(2.8, 115.2))
     airports.append(Point_l(13.8, 93.2))
+    
+    '''
+    # Other dummy data
+    airports.append(Point_l(25.0,145.0))
+    airports.append(Point_l(35.0,155.0))
+    '''
 
     return airports
 
-def get_currents(dim, m):
+def get_currents(dim_m, dim_l, m):
 
     print("\n=== Getting current data")
 
@@ -54,7 +62,7 @@ def get_currents(dim, m):
     server_prefix = 'http://nomads.ncep.noaa.gov:9090/dods/'
     dataset = 'rtofs/rtofs_global'+mydate
     datavarU = 'rtofs_glo_3dz_forecast_daily_uvel'
-    datavarV = 'rtofs_glo_3dz_forecast_daily_uvel'
+    datavarV = 'rtofs_glo_3dz_forecast_daily_vvel'
 
     # Load the U data from cache
     url= server_prefix + dataset + '/' + datavarU
@@ -76,14 +84,73 @@ def get_currents(dim, m):
     lonV = np.load(cacheFilename%('lon'))
     dataV = np.load(cacheFilename%('data'))
 
-    print("Done loading U and V data\n")
-
+    print("Done loading U and V data")
+    
     # Interpolators for the data
-    interpU = interpolate.interp2d(lonU, latU, dataU)
-    interpV = interpolate.interp2d(lonV, latV, dataV)
+    print("Creating interpolators")
+    '''
+    lonPts = np.zeros((dataU.size,1))
+    latPts = np.zeros((dataU.size,1))
+    UPts = np.zeros((dataU.size,1))
+    VPts = np.zeros((dataU.size,1))
+    ind = 0
+    for i in range(len(lonU)):
+        
+        if(lonU[i] < dim_l.lon_min or lonU[i] > dim_l.lon_max):
+            continue
+
+        for j in range(len(latU)):
+        
+            if(latU[j] < dim_l.lat_min or latU[j] > dim_l.lat_max):
+                continue
+
+            if(not (isnan(dataU[j,i]) or isnan(dataV[j,i]))):
+           
+                lonPts[ind] = lonU[i]
+                latPts[ind] = latU[j]
+                UPts[ind] = dataU[j,i]
+                VPts[ind] = dataV[j,i]
+
+                ind += 1
+
+    lonPts = lonPts[:ind]
+    latPts = latPts[:ind]
+    UPts = UPts[:ind]
+    VPts = VPts[:ind]
+
+    interpU = interpolate.interp2d(lonPts, latPts, UPts)
+    interpV = interpolate.interp2d(lonPts, latPts, UPts)
+    '''
+    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0), kind='quintic')
+    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0), kind='quintic')
 
     # Output meshes
-    #Udata = 
+    print("Generating output meshes")
+    Udata = np.zeros((dim_m.x_res,dim_m.y_res))
+    Vdata = np.zeros((dim_m.x_res,dim_m.y_res))
+
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res, )
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+   
+    # Convert meteres/sec to meters/day
+    conv = 60*60*24
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            if(not m.is_land(p_y[j], p_x[i])):
+
+                lat, lon = m(p_y[j], p_x[i], inverse=True)
+                
+                Udata[i,j] = interpU(lat, lon) * conv
+                Vdata[i,j] = interpV(lat, lon) * conv
 
 
-    return None, None
+    # TODO FIXME FIXME
+    #Udata = Udata * 0
+    #Udata = np.ones(Udata.shape) * Vdata.mean() * 40
+    #Vdata = np.ones(Vdata.shape) * Vdata.mean() * 40
+    #Vdata = Vdata * 0
+    
+    # Account for the corrdinate change
+    return Vdata, Udata
