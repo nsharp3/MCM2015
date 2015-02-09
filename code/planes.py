@@ -39,11 +39,15 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
 unguided_crash_dev = 100000.0*(10^3)   # The devitaion of the normal distribution for the unguided crash sites
-Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
+Pr_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
-search_plane_visibility = .95	# Probability that a search plane will spot debris in its area
-search_plane_depth = .5 	# Parameter to control the cubic decrase in a search plane's usefulness of spotting underwater (intact) crash
 p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
+# Search vehicle params
+pr_sp_srfc = 0.90   # Probability that a search plane will spot crash debris in its area
+LSALT = 400     # "Lowest Safe ALTitude" that a plane can fly (in meters)
+c_MAD = 3.435e-8    # constant to fit the MAD's functionality curve
+pr_sb_srfc = 0.66   # Probability that a search boat will spot crash debris in its area
+pr_sb_snkn = 1.0    # Probability that a search boat will detect sunken crash in its area
 
 def main():
 
@@ -80,7 +84,7 @@ def main():
     airports_m = [Point_m(m(apt.lon,apt.lat)[0], m(apt.lon, apt.lat)[1]) for apt in airports]
 
     # Get current data
-    U_m, V_m = get_currents(dim, m)
+    # U_m, V_m = get_currents(dim, m)
 
     ## Run calculations to evaluate the problem
     print("=== Evaluating problem\n")
