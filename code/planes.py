@@ -45,7 +45,7 @@ p_debris_float = 0	# Proportion of debris that floats after an "intact" type cra
 p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
 # Search vehicle params
 pr_sp_srfc = 0.90   # Probability that a search plane will spot crash debris in its area
-LSALT = 400     # "Lowest Safe ALTitude" that a plane can fly (in meters)
+LSALT = 400     # "Lowest Safe Altitude" that a plane can fly (in meters)
 c_MAD = 3.435e-8    # constant to fit the MAD's functionality curve
 pr_sb_srfc = 0.66   # Probability that a search boat will spot crash debris in its area
 pr_sb_snkn = 1.0    # Probability that a search boat will detect sunken crash in its area
@@ -59,12 +59,23 @@ def main():
     target = Point_l(-3.6,105.3)
     
     # The problem domain and resolution
-    lat_min = -10
-    lat_max = 20
-    lon_min = 90
-    lon_max = 120
+    lat_min = -10.0
+    lat_max = 20.0
+    lon_min = 90.0
+    lon_max = 120.0
+    lat_res = 150 
+    lon_res = 150
+    
+    # Rectangle
+    '''
+    lat_min = 20
+    lat_max = 40
+    lon_min = 140
+    lon_max = 160
     lat_res = 200 
     lon_res = 200
+    '''
+
     dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
     # create Basemap instance.
@@ -89,6 +100,9 @@ def main():
 
     # Get current data
     U_m, V_m = get_currents(dim_m, dim, m)
+
+    # Get dpeth data
+    depth_m = get_depths(dim, dim_m, m)
 
     ## Run calculations to evaluate the problem
     print("\n=== Evaluating problem\n")
@@ -164,12 +178,12 @@ def main():
         parallels = np.arange(0.,90,10.)
         m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
         
-        cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
+        #cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
         #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmin = 0, vmax=maxInitProb)
-        #cs = m.pcolormesh(x, y, U_m, cmap="YlOrRd", vmin = 0)
+        cs = m.pcolormesh(x, y, depth_m, cmap="bone")
         cbar = m.colorbar(cs,location='bottom',pad="5%")
         #Q = m.quiver(x, y, U_m, V_m)
-        #plt.show() 
+        plt.show() 
         plt.savefig("output/probs_"+str(iDay)+".png")
         plt.close()
         

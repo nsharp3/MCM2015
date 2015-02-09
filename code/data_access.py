@@ -31,6 +31,10 @@ from shapely.geometry import Point
 
 import netCDF4
 import os.path
+import urllib2
+import StringIO
+import csv
+import pickle as pickle
 
 
 
@@ -88,39 +92,6 @@ def get_currents(dim_m, dim_l, m):
     
     # Interpolators for the data
     print("Creating interpolators")
-    '''
-    lonPts = np.zeros((dataU.size,1))
-    latPts = np.zeros((dataU.size,1))
-    UPts = np.zeros((dataU.size,1))
-    VPts = np.zeros((dataU.size,1))
-    ind = 0
-    for i in range(len(lonU)):
-        
-        if(lonU[i] < dim_l.lon_min or lonU[i] > dim_l.lon_max):
-            continue
-
-        for j in range(len(latU)):
-        
-            if(latU[j] < dim_l.lat_min or latU[j] > dim_l.lat_max):
-                continue
-
-            if(not (isnan(dataU[j,i]) or isnan(dataV[j,i]))):
-           
-                lonPts[ind] = lonU[i]
-                latPts[ind] = latU[j]
-                UPts[ind] = dataU[j,i]
-                VPts[ind] = dataV[j,i]
-
-                ind += 1
-
-    lonPts = lonPts[:ind]
-    latPts = latPts[:ind]
-    UPts = UPts[:ind]
-    VPts = VPts[:ind]
-
-    interpU = interpolate.interp2d(lonPts, latPts, UPts)
-    interpV = interpolate.interp2d(lonPts, latPts, UPts)
-    '''
     interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0), kind='quintic')
     interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0), kind='quintic')
 
@@ -129,7 +100,7 @@ def get_currents(dim_m, dim_l, m):
     Udata = np.zeros((dim_m.x_res,dim_m.y_res))
     Vdata = np.zeros((dim_m.x_res,dim_m.y_res))
 
-    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res, )
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
     p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
    
     # Convert meteres/sec to meters/day
@@ -154,3 +125,122 @@ def get_currents(dim_m, dim_l, m):
     
     # Account for the corrdinate change
     return Vdata, Udata
+
+# Returns depths in meters
+# Adapted from http://oceanpython.org/2013/03/21/bathymetry-topography-srtm30/
+def get_depths(dim_l, dim_m, m):
+
+    print("\n=== Getting depth data")
+
+    # Definine the domain of interest
+    minlat = dim_l.lat_min
+    maxlat = dim_l.lat_max
+    minlon = dim_l.lon_min
+    maxlon = dim_l.lon_max
+
+    cacheFilename = 'cache/depth_%0.2f_%0.2f_%0.2f_%0.2f.p'%(minlat,maxlat,minlon,maxlon)
+
+
+
+    if(not os.path.isfile(cacheFilename)):
+    #if(True):
+
+        # Read data from: http://coastwatch.pfeg.noaa.gov/erddap/griddap/usgsCeSrtm30v6.html
+        print("Data cache not found, downloading...")
+        skipRes = 10
+        url = 'http://coastwatch.pfeg.noaa.gov/erddap/griddap/usgsCeSrtm30v6.csv?topo[(' \
+                                    +str(maxlat)+'):'+str(skipRes)+':('+str(minlat)+')][('+str(minlon)+'):'+str(skipRes)+':('+str(maxlon)+')]'
+        print("url: " + url)
+        response = urllib2.urlopen(url)
+                                  
+        print("Done downloading.")
+
+        data = StringIO.StringIO(response.read())
+         
+        r = csv.DictReader(data,dialect=csv.Sniffer().sniff(data.read(1000)))
+        data.seek(0)
+
+        # Initialize variables
+        lat, lon, topo = [], [], []
+         
+        # Loop to parse 'data' into our variables
+        # Note that the second row has the units (i.e. not numbers). Thus we implement a
+        # try/except instance to prevent the loop for breaking in the second row (ugly fix)
+        for row in r:
+            try:
+                lat.append(float(row['latitude']))
+                lon.append(float(row['longitude']))
+                topo.append(float(row['topo']))
+            except:
+                print 'Row '+str(row)+' is a bad...'
+         
+        # Convert 'lists' into 'numpy arrays'
+        lat  = np.array(lat,  dtype='float')
+        lon  = np.array(lon,  dtype='float')
+        topo = np.array(topo, dtype='float')
+        
+        latPts = set(lat)
+        lonPts = set(lon)
+        latPts = sorted([x for x in latPts])
+        lonPts = sorted([x for x in lonPts])
+       
+        latIndDict = {}
+        lonIndDict = {}
+        for ind,val in enumerate(latPts):
+            latIndDict[val] = ind
+        for ind,val in enumerate(lonPts):
+            lonIndDict[val] = ind
+
+        latPts = np.array(latPts)
+        lonPts = np.array(lonPts)
+
+        topoPts = np.zeros((len(latPts), len(lonPts)))
+        for i in range(len(lat)):
+            lonInd = lonIndDict[lon[i]]
+            latInd = latIndDict[lat[i]]
+            topoPts[latInd,lonInd] = topo[i]
+
+         
+        # Make an empty 'dictionary'... place the 3 grids in it.
+        TOPO = {}
+        TOPO['lats']=latPts
+        TOPO['lons']=lonPts
+        TOPO['topo']=topoPts
+         
+        # Save (i.e. pickle) the data for later use
+        # This saves the variable TOPO (with all its contents) into the file: topo.p
+        pickle.dump(TOPO, open(cacheFilename,'wb'))
+        print("Data cached for later use")
+     
+    TOPO = pickle.load(open(cacheFilename,'r'))
+    latPts = TOPO['lats']
+    lonPts = TOPO['lons']
+    topoPts = TOPO['topo']
+
+    # Translate to x/y grid for our problem
+    
+    # Interpolators for the data
+    print("Creating interpolators")
+    interp = interpolate.interp2d(lonPts, latPts, topoPts, kind='linear')
+
+    # Output meshes
+    print("Generating output mesh")
+    data = np.zeros((dim_m.x_res,dim_m.y_res))
+
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+   
+    # Convert meteres/sec to meters/day
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            if(not m.is_land(p_y[j], p_x[i])):
+
+                lat, lon = m(p_y[j], p_x[i], inverse=True)
+                
+                data[i,j] = min(interp(lat, lon),0)
+
+
+    return data
+
