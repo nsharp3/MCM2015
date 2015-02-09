@@ -57,11 +57,10 @@ def calc_costs(dim, airports):
     return costs
 
 
-
-# Calculate probabilities of locating the crash with a search vehicle
+# Calculate probabilities of locating the crash with a search plane
 # Returns a lat x lon array with the probabilities of locating the
 # crash in those areas
-def search_probabilities(dim_m, srfc_probabilities, snkn_probabilities, depth_data, p_surface_viz, p_snkn_viz):
+def search_plane_probabilities(dim_m, srfc_probabilities, snkn_probabilities, depth_data):
 
     print("=== Calculating search vehicle probabilities")
 
@@ -71,8 +70,8 @@ def search_probabilities(dim_m, srfc_probabilities, snkn_probabilities, depth_da
         for j in range(dim_m.x_res):
             
             # At an (x,y), compute the probability of locating the crash
-            Pr_locating_given_srfc = p_surface_viz
-            Pr_locating_given_snkn = p_surface_viz / (1 + p_depth_viz*pow(depth_data[i,j],3))
+            Pr_locating_given_srfc = pr_sp_srfc
+            Pr_locating_given_snkn = pr_sp_srfc / (1 + c_MAD*pow(LSALT+depth_data[i,j],3))
             search_probabilities[i,j] = Pr_locating_given_srfc * srfc_probabilities[i,j] + \
                                         Pr_locating_given_snkn * snkn_probabilities[i,j]
 
@@ -81,3 +80,24 @@ def search_probabilities(dim_m, srfc_probabilities, snkn_probabilities, depth_da
 
     return search_probabilities
 
+
+# Calculate probabilities of locating the crash with a search boat
+# Returns a lat x lon array with the probabilities of locating the
+# crash in those areas
+def search_boat_probabilities(dim_m, srfc_probabilities, snkn_probabilities):
+
+    print("=== Calculating search vehicle probabilities")
+
+    search_probabilities = np.ones((dim_m.y_res, dim_m.x_res)) * float('inf')
+
+    for i in range(dim_m.y_res):
+        for j in range(dim_m.x_res):
+            
+            # At an (x,y), compute the probability of locating the crash
+            search_probabilities[i,j] = pr_sb_srfc * srfc_probabilities[i,j] + \
+                                        pr_sb_snkn * snkn_probabilities[i,j]
+
+
+    print("=== Done calculating search vehicle probabilities")
+
+    return search_probabilities
