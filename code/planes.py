@@ -39,7 +39,8 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
 unguided_crash_dev = 100000.0*(10^3)   # The devitaion of the normal distribution for the unguided crash sites
-Pr_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
+p_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
+#p_intact = 1.0 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
 p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
 # Search vehicle params
@@ -62,8 +63,8 @@ def main():
     lat_max = 20
     lon_min = 90
     lon_max = 120
-    lat_res = 100 
-    lon_res = 100
+    lat_res = 200 
+    lon_res = 200
     dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
     # create Basemap instance.
@@ -79,6 +80,9 @@ def main():
     source_m = Point_m(m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
     target_m = Point_m(m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
 
+    print("X resolution (km) is: " + str((dim_m.x_max - dim_m.x_min) / (dim_m.x_res - 1) / 1000 ))
+    print("Y resolution (km) is: " + str((dim_m.y_max - dim_m.y_min) / (dim_m.y_res - 1) / 1000 ))
+
     # Airport locations
     airports = get_airports(dim)
     airports_m = [Point_m(m(apt.lon,apt.lat)[0], m(apt.lon, apt.lat)[1]) for apt in airports]
@@ -92,7 +96,8 @@ def main():
     costs = calc_costs(dim, airports)
 
     init_vals = calc_init_values(dim_m, source_m, target_m, airports_m, m)
-   
+    sink_crash = p_intact * init_vals
+    surface_crash = (1 - p_intact) * init_vals
     
     
     ## Plot
@@ -138,10 +143,13 @@ def main():
     '''
 
     # Allow the probabilities to flow in the current
-    current_mapping = generate_current_mapping(dim_m, U_m, V_m, 1.0/4)
+    current_mapping = generate_current_mapping(dim_m, U_m, V_m, 1.0/10)
     curr_probs = init_vals.copy()
+    maxInitProb = init_vals.max() * 1.2
 
     for iDay in range(100):
+
+        curr_probs = sink_crash + surface_crash
 
         # Plotting stuff
         fig = plt.figure(figsize=(8,8))
@@ -156,15 +164,17 @@ def main():
         parallels = np.arange(0.,90,10.)
         m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
         
-        cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd")
-        #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd")
+        cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
+        #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmin = 0, vmax=maxInitProb)
+        #cs = m.pcolormesh(x, y, U_m, cmap="YlOrRd", vmin = 0)
         cbar = m.colorbar(cs,location='bottom',pad="5%")
-      
+        #Q = m.quiver(x, y, U_m, V_m)
+        #plt.show() 
         plt.savefig("output/probs_"+str(iDay)+".png")
         plt.close()
         
         # Update the probabilities
-        curr_probs = apply_current_mapping(dim_m, curr_probs, current_mapping, m)
+        surface_crash = apply_current_mapping(dim_m, surface_crash, current_mapping, m)
     
 
 

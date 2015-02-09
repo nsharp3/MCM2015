@@ -38,12 +38,19 @@ def get_airports(dim):
 
     #TODO dummy data for now
     airports = []
+   
     
     airports.append(Point_l(14.7,100.6))
     airports.append(Point_l(-3.6,105.3))
     airports.append(Point_l(4.3, 97.5))
     airports.append(Point_l(2.8, 115.2))
     airports.append(Point_l(13.8, 93.2))
+    
+    '''
+    # Other dummy data
+    airports.append(Point_l(25.0,145.0))
+    airports.append(Point_l(35.0,155.0))
+    '''
 
     return airports
 
@@ -55,7 +62,7 @@ def get_currents(dim_m, dim_l, m):
     server_prefix = 'http://nomads.ncep.noaa.gov:9090/dods/'
     dataset = 'rtofs/rtofs_global'+mydate
     datavarU = 'rtofs_glo_3dz_forecast_daily_uvel'
-    datavarV = 'rtofs_glo_3dz_forecast_daily_uvel'
+    datavarV = 'rtofs_glo_3dz_forecast_daily_vvel'
 
     # Load the U data from cache
     url= server_prefix + dataset + '/' + datavarU
@@ -114,15 +121,15 @@ def get_currents(dim_m, dim_l, m):
     interpU = interpolate.interp2d(lonPts, latPts, UPts)
     interpV = interpolate.interp2d(lonPts, latPts, UPts)
     '''
-    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0))
-    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0))
+    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0), kind='quintic')
+    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0), kind='quintic')
 
     # Output meshes
     print("Generating output meshes")
     Udata = np.zeros((dim_m.x_res,dim_m.y_res))
     Vdata = np.zeros((dim_m.x_res,dim_m.y_res))
 
-    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res, )
     p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
    
     # Convert meteres/sec to meters/day
@@ -139,4 +146,11 @@ def get_currents(dim_m, dim_l, m):
                 Vdata[i,j] = interpV(lat, lon) * conv
 
 
-    return Udata, Vdata
+    # TODO FIXME FIXME
+    #Udata = Udata * 0
+    #Udata = np.ones(Udata.shape) * Vdata.mean() * 40
+    #Vdata = np.ones(Vdata.shape) * Vdata.mean() * 40
+    #Vdata = Vdata * 0
+    
+    # Account for the corrdinate change
+    return Vdata, Udata

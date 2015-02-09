@@ -39,12 +39,14 @@ def calc_init_values(dim_m, source, target, airports, m):
     print("\n=== Calculating values")
 
     prob_unguided = calc_init_values_unguided(dim_m, source, target)
-    mask_and_normalize_probs(dim_m, prob_unguided, m)
+    prob_unguided = mask_and_normalize_probs(dim_m, prob_unguided, m)
+
 
     prob_guided = calc_init_values_guided(dim_m, source, target, airports)
-    mask_and_normalize_probs(dim_m, prob_guided, m)
+    prob_guided = mask_and_normalize_probs(dim_m, prob_guided, m)
 
     probTotal = planes.p_guided_failure * prob_guided + (1 - planes.p_guided_failure) * prob_unguided
+
 
     return probTotal
 
@@ -68,8 +70,12 @@ def mask_and_normalize_probs(dim_m, probs, m):
 
             sumProb += probs[i,j]
 
-    probs = probs * (1 / sumProb)
+    if sumProb < 0.0000001:
+        probs = probs * 0.0
+    else:
+        probs = probs * (1.0 / sumProb)
 
+    return probs
 
 def calc_init_values_unguided(dim, source, target):
 
@@ -342,7 +348,9 @@ def generate_current_mapping(dim_m, U, V, delT):
     dX = float(dim_m.x_max - dim_m.x_min) / (dim_m.x_res)
     dY = float(dim_m.y_max - dim_m.y_min) / (dim_m.y_res)
 
+
     largestDel = 0
+    sumP = 0
 
     for i in range(dim_m.x_res):
         for j in range(dim_m.y_res):
@@ -368,6 +376,8 @@ def generate_current_mapping(dim_m, U, V, delT):
             offY = delHatY * (1-delHatX)
             offXY = delHatX * delHatY
 
+            sumP += stay + offX + offY + offXY
+
             currMap[((i,j),(i,j))] = stay
             currMap[((i,j),(i + uDir,j))] = offX
             currMap[((i,j),(i,j + vDir))] = offY
@@ -375,6 +385,10 @@ def generate_current_mapping(dim_m, U, V, delT):
 
 
     print("Largest current delta for interval is " + str(largestDel))
+
+    sumP /= (dim_m.x_res * dim_m.y_res)
+    print("Sum prob = " + str(sumP))
+    #print(currMap)
 
     return currMap
 
@@ -391,8 +405,9 @@ def apply_current_mapping(dim_m, old_probs, currMap, m):
         except:
             pass
 
-    mask_and_normalize_probs(dim_m, new_probs, m)
 
+    new_probs = mask_and_normalize_probs(dim_m, new_probs, m)
+    
     return new_probs
 
 
