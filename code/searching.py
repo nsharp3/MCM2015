@@ -71,7 +71,7 @@ def search_plane_probabilities(dim_m, srfc_probabilities, snkn_probabilities, de
             
             # At an (x,y), compute the probability of locating the crash
             Pr_locating_given_srfc = pr_sp_srfc
-            Pr_locating_given_snkn = pr_sp_srfc / (1 + c_MAD*pow(LSALT+depth_data[i,j],3))
+            Pr_locating_given_snkn = pr_sp_srfc / (1 + c_MAD*pow(sp_alt+depth_data[i,j],3))
             search_probabilities[i,j] = Pr_locating_given_srfc * srfc_probabilities[i,j] + \
                                         Pr_locating_given_snkn * snkn_probabilities[i,j]
 
@@ -81,10 +81,10 @@ def search_plane_probabilities(dim_m, srfc_probabilities, snkn_probabilities, de
     return search_probabilities
 
 
-# Calculate probabilities of locating the crash with a search boat
+# Calculate probabilities of locating the crash with a search vessel
 # Returns a lat x lon array with the probabilities of locating the
 # crash in those areas
-def search_boat_probabilities(dim_m, srfc_probabilities, snkn_probabilities):
+def search_vessel_probabilities(dim_m, srfc_probabilities, snkn_probabilities):
 
     print("=== Calculating search vehicle probabilities")
 
@@ -94,8 +94,8 @@ def search_boat_probabilities(dim_m, srfc_probabilities, snkn_probabilities):
         for j in range(dim_m.x_res):
             
             # At an (x,y), compute the probability of locating the crash
-            search_probabilities[i,j] = pr_sb_srfc * srfc_probabilities[i,j] + \
-                                        pr_sb_snkn * snkn_probabilities[i,j]
+            search_probabilities[i,j] = pr_sv_srfc * srfc_probabilities[i,j] + \
+                                        pr_sv_snkn * snkn_probabilities[i,j]
 
 
     print("=== Done calculating search vehicle probabilities")
