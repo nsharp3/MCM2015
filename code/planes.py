@@ -38,11 +38,12 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
-unguided_crash_dev = 100000*10^3   # The devitaion of the normal distribution for the unguided crash sites
+unguided_crash_dev = 100000.0*(10^3)   # The devitaion of the normal distribution for the unguided crash sites
 Pr_intact = 0.5 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
 search_plane_visibility = .95	# Probability that a search plane will spot debris in its area
 search_plane_depth = .5 	# Parameter to control the cubic decrase in a search plane's usefulness of spotting underwater (intact) crash
+p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
 
 def main():
 
@@ -57,8 +58,8 @@ def main():
     lat_max = 20
     lon_min = 90
     lon_max = 120
-    lat_res = 300
-    lon_res = 300
+    lat_res = 100 
+    lon_res = 100
     dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
     # create Basemap instance.
@@ -76,14 +77,17 @@ def main():
 
     # Airport locations
     airports = get_airports(dim)
+    airports_m = [Point_m(m(apt.lon,apt.lat)[0], m(apt.lon, apt.lat)[1]) for apt in airports]
 
+    # Get current data
+    U_m, V_m = get_currents(dim, m)
 
     ## Run calculations to evaluate the problem
     print("=== Evaluating problem\n")
 
     costs = calc_costs(dim, airports)
 
-    init_vals = calc_init_values(dim_m, source_m, target_m, m)
+    init_vals = calc_init_values(dim_m, source_m, target_m, airports_m, m)
    
     
     
