@@ -15,6 +15,7 @@ from crashing import*
 # Python utilities
 from collections import namedtuple
 from math import sqrt
+from math import isnan 
 
 # External libraries
 import numpy as np
@@ -46,7 +47,7 @@ def get_airports(dim):
 
     return airports
 
-def get_currents(dim, m):
+def get_currents(dim_m, dim_l, m):
 
     print("\n=== Getting current data")
 
@@ -76,14 +77,66 @@ def get_currents(dim, m):
     lonV = np.load(cacheFilename%('lon'))
     dataV = np.load(cacheFilename%('data'))
 
-    print("Done loading U and V data\n")
-
+    print("Done loading U and V data")
+    
     # Interpolators for the data
-    interpU = interpolate.interp2d(lonU, latU, dataU)
-    interpV = interpolate.interp2d(lonV, latV, dataV)
+    print("Creating interpolators")
+    '''
+    lonPts = np.zeros((dataU.size,1))
+    latPts = np.zeros((dataU.size,1))
+    UPts = np.zeros((dataU.size,1))
+    VPts = np.zeros((dataU.size,1))
+    ind = 0
+    for i in range(len(lonU)):
+        
+        if(lonU[i] < dim_l.lon_min or lonU[i] > dim_l.lon_max):
+            continue
+
+        for j in range(len(latU)):
+        
+            if(latU[j] < dim_l.lat_min or latU[j] > dim_l.lat_max):
+                continue
+
+            if(not (isnan(dataU[j,i]) or isnan(dataV[j,i]))):
+           
+                lonPts[ind] = lonU[i]
+                latPts[ind] = latU[j]
+                UPts[ind] = dataU[j,i]
+                VPts[ind] = dataV[j,i]
+
+                ind += 1
+
+    lonPts = lonPts[:ind]
+    latPts = latPts[:ind]
+    UPts = UPts[:ind]
+    VPts = VPts[:ind]
+
+    interpU = interpolate.interp2d(lonPts, latPts, UPts)
+    interpV = interpolate.interp2d(lonPts, latPts, UPts)
+    '''
+    interpU = interpolate.interp2d(lonU, latU, dataU.filled(fill_value=0))
+    interpV = interpolate.interp2d(lonV, latV, dataV.filled(fill_value=0))
 
     # Output meshes
-    #Udata = 
+    print("Generating output meshes")
+    Udata = np.zeros((dim_m.x_res,dim_m.y_res))
+    Vdata = np.zeros((dim_m.x_res,dim_m.y_res))
+
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+   
+    # Convert meteres/sec to meters/day
+    conv = 60*60*24
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            if(not m.is_land(p_y[j], p_x[i])):
+
+                lat, lon = m(p_y[j], p_x[i], inverse=True)
+                
+                Udata[i,j] = interpU(lat, lon) * conv
+                Vdata[i,j] = interpV(lat, lon) * conv
 
 
-    return None, None
+    return Udata, Vdata

@@ -36,7 +36,7 @@ longDist = 10^12 # Arbitrary large distance for geometry calculations
 # crashed in that area 
 def calc_init_values(dim_m, source, target, airports, m):
     
-    print("=== Calculating values")
+    print("\n=== Calculating values")
 
     prob_unguided = calc_init_values_unguided(dim_m, source, target)
     mask_and_normalize_probs(dim_m, prob_unguided, m)
@@ -73,7 +73,7 @@ def mask_and_normalize_probs(dim_m, probs, m):
 
 def calc_init_values_unguided(dim, source, target):
 
-    print("=== Calculating unguided probabilities")
+    print("\n=== Calculating unguided probabilities")
 
     p_x = np.linspace(dim.x_min, dim.x_max, dim.x_res)
     p_y = np.linspace(dim.y_min, dim.y_max, dim.y_res)
@@ -112,9 +112,9 @@ def calc_init_values_unguided(dim, source, target):
 
 def calc_init_values_guided(dim, source, target, airports):
 
-    print("=== Calculating guided probabilities")
+    print("\n=== Calculating guided probabilities")
 
-    nLinePts = 20 # Constant controlling granularity along line for computation
+    nLinePts = 1000 # Constant controlling granularity along line for computation
 
     p_x = np.linspace(dim.x_min, dim.x_max, dim.x_res)
     p_y = np.linspace(dim.y_min, dim.y_max, dim.y_res)
@@ -163,7 +163,7 @@ def calc_init_values_guided(dim, source, target, airports):
     # closest airport
     def process_interior_segment(startInd, endInd, airportInd):
 
-        print("\n\nProcessing interior segment...")
+        print("Processing interior segment...")
 
         airport = airports[airportInd]
         #airport = Point(airports[airportInd].x, airports[airportInd].y)
@@ -264,7 +264,7 @@ def calc_init_values_guided(dim, source, target, airports):
     # Note that this is used hackily backwards for the last segment
     def process_exterior_segment(startInd, endInd, airportInd):
         
-        print("\n\nProcessing exterior segment...")
+        print("Processing exterior segment...")
 
         airport = airports[airportInd]
         startPt = Point(lineX[startInd], lineY[startInd])
@@ -332,6 +332,69 @@ def calc_init_values_guided(dim, source, target, airports):
 
     return probs
 
+# delT is measured in days
+def generate_current_mapping(dim_m, U, V, delT):
+
+    print("\n=== Generating current mapping")
+
+    currMap = {} # (start, end) --> proportion
+
+    dX = float(dim_m.x_max - dim_m.x_min) / (dim_m.x_res)
+    dY = float(dim_m.y_max - dim_m.y_min) / (dim_m.y_res)
+
+    largestDel = 0
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            u = abs(U[i,j])
+            v = abs(V[i,j])
+
+            uDir = sign(U[i,j])
+            vDir = sign(V[i,j])
+            
+            delHatX = u * delT / dX
+            delHatY = v * delT / dY
+
+            if(delHatX > 1 or delHatY > 1):
+                print("DelT is too large. Movement = " + str(max(delHatX,delHatY)))
+
+            largestDel = max(largestDel, delHatX)
+            largestDel = max(largestDel, delHatY)
+
+
+            stay = (1-delHatX) * (1-delHatY)
+            offX = delHatX * (1-delHatY)
+            offY = delHatY * (1-delHatX)
+            offXY = delHatX * delHatY
+
+            currMap[((i,j),(i,j))] = stay
+            currMap[((i,j),(i + uDir,j))] = offX
+            currMap[((i,j),(i,j + vDir))] = offY
+            currMap[((i,j),(i + uDir,j + vDir))] = offXY
+
+
+    print("Largest current delta for interval is " + str(largestDel))
+
+    return currMap
+
+def apply_current_mapping(dim_m, old_probs, currMap, m):
+
+    print("\n=== Applying current mapping")
+
+    new_probs = np.zeros(old_probs.shape)
+
+    for inds, frac in currMap.iteritems():
+
+        try:
+            new_probs[inds[1]] += old_probs[inds[0]] * frac
+        except:
+            pass
+
+    mask_and_normalize_probs(dim_m, new_probs, m)
+
+    return new_probs
+
 
 # Extends a shapely line very far in either direction to simulate it
 # being infinite
@@ -381,3 +444,11 @@ def line_slightly_smaller(line):
 
 
     return longLine
+
+
+def sign(val):
+
+    if val != 0:
+        return np.sign(val)
+
+    return 1.0

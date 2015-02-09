@@ -80,10 +80,10 @@ def main():
     airports_m = [Point_m(m(apt.lon,apt.lat)[0], m(apt.lon, apt.lat)[1]) for apt in airports]
 
     # Get current data
-    U_m, V_m = get_currents(dim, m)
+    U_m, V_m = get_currents(dim_m, dim, m)
 
     ## Run calculations to evaluate the problem
-    print("=== Evaluating problem\n")
+    print("\n=== Evaluating problem\n")
 
     costs = calc_costs(dim, airports)
 
@@ -94,25 +94,27 @@ def main():
     ## Plot
     
     # Set up the figure
+    '''
     fig = plt.figure(figsize=(8,8))
     ax = fig.add_axes([0.1,0.1,0.8,0.8])    
-   
+    
     m.fillcontinents(zorder=1)
     m.drawcoastlines()
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
     m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-    
+    '''
+
     # Draw the line representing the flight
     (xSource, ySource) = m(source.lon, source.lat)
     (xTarget, yTarget) = m(target.lon, target.lat)
-    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
-    
+    #m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+
     # Draw dots on airports
     aptCoords = [(p.lon, p.lat) for p in airports]
     aptCoords = np.array(aptCoords)
-    x, y = m(aptCoords[:,0], aptCoords[:,1])
-    m.scatter(x, y, 30, marker='s', color='red', zorder=5)
+    xA, yA = m(aptCoords[:,0], aptCoords[:,1])
+    #m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
 
 
     # Draw a contour map of costs
@@ -126,10 +128,40 @@ def main():
     p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
     p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
     x, y = np.meshgrid(p_x, p_y)
-    cs = m.contourf(x, y, init_vals, cmap="Blues")
+    '''
+    cs = m.contourf(x, y, u_m, cmap="blues")
     cbar = m.colorbar(cs,location='bottom',pad="5%")
+    '''
 
-    plt.show()
+    # Allow the probabilities to flow in the current
+    current_mapping = generate_current_mapping(dim_m, U_m, V_m, 1.0/4)
+    curr_probs = init_vals.copy()
+
+    for iDay in range(100):
+
+        # Plotting stuff
+        fig = plt.figure(figsize=(8,8))
+        
+        ax = fig.add_axes([0.1,0.1,0.8,0.8])    
+        m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+        m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
+        
+        m.fillcontinents(zorder=1)
+        m.drawcoastlines()
+        m.drawcountries()
+        parallels = np.arange(0.,90,10.)
+        m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
+        
+        cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd")
+        #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd")
+        cbar = m.colorbar(cs,location='bottom',pad="5%")
+      
+        plt.savefig("output/probs_"+str(iDay)+".png")
+        plt.close()
+        
+        # Update the probabilities
+        curr_probs = apply_current_mapping(dim_m, curr_probs, current_mapping, m)
+    
 
 
 
