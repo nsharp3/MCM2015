@@ -128,7 +128,7 @@ def main():
     xA, yA = m(aptCoords[:,0], aptCoords[:,1])
     
     ## Plot
-    
+    '''
     # Set up the figure
     fig = plt.figure(figsize=(8,8))
     ax = fig.add_axes([0.1,0.1,0.8,0.8])    
@@ -153,6 +153,7 @@ def main():
     cbar = m.colorbar(cs,location='bottom',pad="5%")
     plt.show()
     return
+    '''
 
     # Draw a contour map of probabilities
     p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
@@ -172,7 +173,19 @@ def main():
 
         curr_probs = sink_crash + surface_crash
 
-        
+        # Calculate the likelihood that a search plane finds a crash at
+        # each location
+        sp_find_prob = search_plane_probabilities(dim_m, surface_crash, sink_crash, depth_m)
+        sb_find_prob = search_vessel_probabilities(dim_m, surface_crash, sink_crash)
+
+        # Calculate the price to search each area
+        price_per_prob_sp = costs_sp / sp_find_prob
+        price_per_prob_sb = costs_sb / sp_find_prob
+
+        price_per_prob_sp = mask_vals(dim_m, price_per_prob_sp, m, fill=10000)
+        #print(price_per_prob_sp.min())
+        #price_per_prob_sp[np.where(np.isinf(price_per_prob_sp))] = float('NaN')
+        #print(price_per_prob_sp.max())
 
         # Plotting stuff
         fig = plt.figure(figsize=(8,8))
@@ -189,7 +202,8 @@ def main():
         
         #cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
         #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmin = 0, vmax=maxInitProb)
-        cs = m.pcolormesh(x, y, depth_m, cmap="bone")
+        cs = m.pcolormesh(x, y, price_per_prob_sp, cmap="YlOrRd", vmax=40000)
+        #cs = m.pcolormesh(x, y, depth_m, cmap="bone")
         cbar = m.colorbar(cs,location='bottom',pad="5%")
         #Q = m.quiver(x, y, U_m, V_m)
         plt.show() 
@@ -200,6 +214,22 @@ def main():
         surface_crash = apply_current_mapping(dim_m, surface_crash, current_mapping, m)
     
 
+def mask_vals(dim_m, vals, m, fill=0):
+
+    print("Masking and normalizing...")
+    
+    p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
+    p_y = np.linspace(dim_m.y_min, dim_m.y_max, dim_m.y_res)
+   
+
+    for i in range(dim_m.x_res):
+        for j in range(dim_m.y_res):
+
+            if(m.is_land(p_y[j], p_x[i])):
+                vals[i,j] = fill
+
+
+    return vals
 
 
 if __name__ == "__main__":

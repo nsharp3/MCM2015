@@ -116,10 +116,9 @@ def search_plane_probabilities(dim_m, srfc_probabilities, snkn_probabilities, de
             
             # At an (x,y), compute the probability of locating the crash
             Pr_locating_given_srfc = pr_sp_srfc
-            Pr_locating_given_snkn = pr_sp_srfc / (1 + c_MAD*pow(sp_alt+depth_data[i,j],3))
+            Pr_locating_given_snkn = pr_sp_srfc / (1 + c_MAD*pow(sp_alt-depth_data[i,j],3))
             search_probabilities[i,j] = Pr_locating_given_srfc * srfc_probabilities[i,j] + \
                                         Pr_locating_given_snkn * snkn_probabilities[i,j]
-
 
     print("=== Done calculating search vehicle probabilities")
 

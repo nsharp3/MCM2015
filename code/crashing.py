@@ -42,7 +42,7 @@ def calc_init_values(dim_m, source, target, airports, m):
     prob_unguided = mask_and_normalize_probs(dim_m, prob_unguided, m)
 
 
-    prob_guided = calc_init_values_guided(dim_m, source, target, airports)
+    prob_guided = calc_init_values_guided(dim_m, source, target, airports, m)
     prob_guided = mask_and_normalize_probs(dim_m, prob_guided, m)
 
     probTotal = planes.p_guided_failure * prob_guided + (1 - planes.p_guided_failure) * prob_unguided
@@ -116,7 +116,7 @@ def calc_init_values_unguided(dim, source, target):
     return probs
 
 
-def calc_init_values_guided(dim, source, target, airports):
+def calc_init_values_guided(dim, source, target, airports, m):
 
     print("\n=== Calculating guided probabilities")
 
@@ -170,6 +170,8 @@ def calc_init_values_guided(dim, source, target, airports):
     def process_interior_segment(startInd, endInd, airportInd):
 
         print("Processing interior segment...")
+    
+        this_seg_probs = np.zeros((dim.x_res, dim.y_res))
 
         airport = airports[airportInd]
         #airport = Point(airports[airportInd].x, airports[airportInd].y)
@@ -185,7 +187,7 @@ def calc_init_values_guided(dim, source, target, airports):
                                 0.5 * (lineY[startInd] + lineY[endInd-1]))])
 
         # The probability the the crash happens in this segment
-        segCrashProg = (endInd - startInd) / float(nLinePts)
+        segCrashProb = (endInd - startInd) / float(nLinePts)
 
         # Used for contains detections
         triLine1 = LineString([(airport.x, airport.y), \
@@ -245,10 +247,10 @@ def calc_init_values_guided(dim, source, target, airports):
 
                 # The probability of landing in this element
                 pAlong = (distrib.cdf(actDist + 0.5*dPerpLine) - distrib.cdf(actDist - 0.5*dPerpLine)) / (distrib.cdf(triLine1.length))
-                pAcross = segCrashProg * segFrac
+                pAcross = segFrac
                 prob = pAlong * pAcross
 
-                probs[i,j] += prob
+                this_seg_probs[i,j] += prob
                 
                 if(prob < 0):
                     print("\nVals:")
@@ -263,7 +265,8 @@ def calc_init_values_guided(dim, source, target, airports):
                     print("Act dist: " + str(actDist))
                     print("Seg frac: " + str(segFrac))
 
-                
+        return mask_and_normalize_probs(dim, this_seg_probs, m) * segCrashProb
+        
     
     # Helper function to process a subset of the line where the closest
     # airport was either the source or the target
@@ -327,7 +330,8 @@ def calc_init_values_guided(dim, source, target, airports):
         elif(currPt == (nLinePts-1)):
             process_exterior_segment(currPt, rangeStartPt, prevClosestAirport)
         else:
-            process_interior_segment(rangeStartPt, currPt, prevClosestAirport)
+            seg_probs = process_interior_segment(rangeStartPt, currPt, prevClosestAirport)
+            probs += seg_probs
 
         rangeStartPt = currPt
         prevClosestAirport = closest_airport(currPt)
