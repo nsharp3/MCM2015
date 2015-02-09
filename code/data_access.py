@@ -58,6 +58,7 @@ def get_airports(dim):
 
     return airports
 
+# See http://polar.ncep.noaa.gov/global/examples/usingpython.shtml
 def get_currents(dim_m, dim_l, m):
 
     print("\n=== Getting current data")

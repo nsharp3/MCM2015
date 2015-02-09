@@ -38,17 +38,21 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 # Constants that define the problem
 # TODO resolve the problem of defining distance over lat/lon
 cost_flight = 1.0   # Cost, measured in $ / distance from nearest airport
-unguided_crash_dev = 100000.0*(10^3)   # The devitaion of the normal distribution for the unguided crash sites
+unguided_crash_dev = 1000.0*(10**3)   # The devitaion of the normal distribution for the unguided crash sites
 p_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 #p_intact = 1.0 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
 p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
 # Search vehicle params
 pr_sp_srfc = 0.90   # Probability that a search plane will spot crash debris in its area
-sp_alt = 400     # "Lowest Safe ALTitude" that a plane can fly (in meters)
+sp_alt = 400        # "Lowest Safe ALTitude" that a plane can fly (in meters)
 c_MAD = 3.435e-8    # constant to fit the MAD's functionality curve
 pr_sv_srfc = 0.66   # Probability that a search vessel will spot crash debris in its area
 pr_sv_snkn = 1.0    # Probability that a search vessel will detect sunken crash in its area
+sp_range = 8000.0*(10**3) # The operational range of a search plane (in meters)
+sp_dist_per_area = 1000    # The distance that needs to be flown to search a 1km square area (in meters)
+sp_cost_tank_gas = 10000    # The cost of a tank of gas for a plane (in dollars)
+sb_cost_area = 500 # The cost for a boat to search a 1 square kilometer area (in dollars)
 
 def main():
 
@@ -91,8 +95,8 @@ def main():
     source_m = Point_m(m(source.lon,source.lat)[0], m(source.lon, source.lat)[1])
     target_m = Point_m(m(target.lon,target.lat)[0], m(target.lon, target.lat)[1])
 
-    print("X resolution (km) is: " + str((dim_m.x_max - dim_m.x_min) / (dim_m.x_res - 1) / 1000 ))
-    print("Y resolution (km) is: " + str((dim_m.y_max - dim_m.y_min) / (dim_m.y_res - 1) / 1000 ))
+    print("X resolution (km) is: " + str((dim_m.x_max - dim_m.x_min) / (dim_m.x_res - 1) / 1000.0 ))
+    print("Y resolution (km) is: " + str((dim_m.y_max - dim_m.y_min) / (dim_m.y_res - 1) / 1000.0 ))
 
     # Airport locations
     airports = get_airports(dim)
@@ -101,23 +105,31 @@ def main():
     # Get current data
     U_m, V_m = get_currents(dim_m, dim, m)
 
-    # Get dpeth data
+    # Get depth data
     depth_m = get_depths(dim, dim_m, m)
 
     ## Run calculations to evaluate the problem
     print("\n=== Evaluating problem\n")
 
-    costs = calc_costs(dim, airports)
+    # Calculate costs
+    costs_sp = calc_costs_sp(dim_m, airports_m)
+    costs_sb = calc_costs_sb(dim_m)
 
     init_vals = calc_init_values(dim_m, source_m, target_m, airports_m, m)
     sink_crash = p_intact * init_vals
     surface_crash = (1 - p_intact) * init_vals
     
+    # Useful things for later plotting
+    (xSource, ySource) = m(source.lon, source.lat)
+    (xTarget, yTarget) = m(target.lon, target.lat)
+    
+    aptCoords = [(p.lon, p.lat) for p in airports]
+    aptCoords = np.array(aptCoords)
+    xA, yA = m(aptCoords[:,0], aptCoords[:,1])
     
     ## Plot
     
     # Set up the figure
-    '''
     fig = plt.figure(figsize=(8,8))
     ax = fig.add_axes([0.1,0.1,0.8,0.8])    
     
@@ -126,26 +138,21 @@ def main():
     m.drawcountries()
     parallels = np.arange(0.,90,10.)
     m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-    '''
 
     # Draw the line representing the flight
-    (xSource, ySource) = m(source.lon, source.lat)
-    (xTarget, yTarget) = m(target.lon, target.lat)
-    #m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
 
     # Draw dots on airports
-    aptCoords = [(p.lon, p.lat) for p in airports]
-    aptCoords = np.array(aptCoords)
-    xA, yA = m(aptCoords[:,0], aptCoords[:,1])
-    #m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
+    m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
 
 
     # Draw a contour map of costs
-    '''
     lons, lats = m.makegrid(lat_res, lon_res)
     x, y = m(lons, lats)
-    cs = m.contourf(x, y, init_vals)
-    '''
+    cs = m.contourf(x, y, costs_sp)
+    cbar = m.colorbar(cs,location='bottom',pad="5%")
+    plt.show()
+    return
 
     # Draw a contour map of probabilities
     p_x = np.linspace(dim_m.x_min, dim_m.x_max, dim_m.x_res)
@@ -164,6 +171,8 @@ def main():
     for iDay in range(100):
 
         curr_probs = sink_crash + surface_crash
+
+        
 
         # Plotting stuff
         fig = plt.figure(figsize=(8,8))
