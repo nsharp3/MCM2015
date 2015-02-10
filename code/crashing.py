@@ -65,7 +65,7 @@ def mask_and_normalize_probs(dim_m, probs, m):
     for i in range(dim_m.x_res):
         for j in range(dim_m.y_res):
 
-            if(m.is_land(p_y[j], p_x[i])):
+            if(m.is_land(p_x[j], p_y[i])):
                 probs[i,j] = 0
 
             sumProb += probs[i,j]
@@ -89,8 +89,8 @@ def calc_init_values_unguided(dim, source, target):
     flightLine = LineString([(source.x, source.y), (target.x, target.y)])
     
     # Compute area statistics along each element
-    dX = p_x[1] - p_x[0]
-    dY = p_y[1] - p_y[0]
+    dX = p_y[1] - p_y[0]
+    dY = p_x[1] - p_x[0]
 
     # Transform the element areas to be along the line
     th = np.arctan2(abs(target.y - source.y), abs(source.x - target.x))
@@ -103,7 +103,7 @@ def calc_init_values_unguided(dim, source, target):
         for j in range(dim.y_res):
             
             # Coordinates of this point
-            pX = p_x[i]
+            pX = p_y[i]
             pY = p_x[j]
 
             dist = Point(pX,pY).distance(flightLine)
@@ -132,8 +132,8 @@ def calc_init_values_guided(dim, source, target, airports, m):
 
 
     # Compute area statistics along each element
-    dX = p_x[1] - p_x[0]
-    dY = p_y[1] - p_y[0]
+    dX = p_y[1] - p_y[0]
+    dY = p_x[1] - p_x[0]
 
     # Transform the element areas to be along the line
     th = np.arctan2(abs(target.y - source.y), abs(source.x - target.x))
@@ -199,7 +199,7 @@ def calc_init_values_guided(dim, source, target, airports, m):
             for j in range(dim.y_res):
                 
                 # Coordinates of this point
-                pX = p_x[i]
+                pX = p_y[i]
                 pY = p_x[j]
                 p = Point(pX, pY)
 
@@ -244,26 +244,17 @@ def calc_init_values_guided(dim, source, target, airports, m):
                 triProg = perpDist / midLine.length
                 triWidth = segLine.length * (1.01 - triProg)
                 segFrac = min(0.1, dAlongLine / triWidth) # Handle clipping due to grid near airport
+                #segFrac = dAlongLine / triWidth # Handle clipping due to grid near airport
 
                 # The probability of landing in this element
-                pAlong = (distrib.cdf(actDist + 0.5*dPerpLine) - distrib.cdf(actDist - 0.5*dPerpLine)) / (distrib.cdf(triLine1.length))
+                #pAlong = (distrib.cdf(actDist + 0.5*dPerpLine) - distrib.cdf(actDist - 0.5*dPerpLine))
+                pAlong = abs(distrib.cdf(actDist + 0.5*dPerpLine) - distrib.cdf(actDist - 0.5*dPerpLine)) / (distrib.cdf(triLine1.length))
+                pAlong = 1 
                 pAcross = segFrac
                 prob = pAlong * pAcross
 
                 this_seg_probs[i,j] += prob
-                
-                if(prob < 0):
-                    print("\nVals:")
-                    print("p: " + str(p))
-                    print("ray: " + str(toAptLineRay))
-                    print("segLine length: " + str(segLine.length))
-                    print("perpDist: " + str(perpDist))
-                    print("midLine length: " + str(midLine.length))
-                    print("triProg: " + str(triProg))
-                    print("Prob: " + str(prob))
-                    print("Perpdist: " + str(perpDist))
-                    print("Act dist: " + str(actDist))
-                    print("Seg frac: " + str(segFrac))
+                #this_seg_probs[i,j] += 1
 
         return mask_and_normalize_probs(dim, this_seg_probs, m) * segCrashProb
         
@@ -295,7 +286,7 @@ def calc_init_values_guided(dim, source, target, airports, m):
             for j in range(dim.y_res):
                 
                 # Coordinates of this point
-                pX = p_x[i]
+                pX = p_y[i]
                 pY = p_x[j]
                 pt = Point(pX, pY)
 
@@ -310,8 +301,6 @@ def calc_init_values_guided(dim, source, target, airports, m):
 
                 probs[i,j] += prob
             
-
-                
 
     # Walk along the points of the line, stopping to process each
     # segment for which a given airport is closest.

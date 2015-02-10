@@ -39,18 +39,18 @@ Dimension_m = namedtuple('Dimension_m', 'y_min y_max y_res x_min x_max x_res') #
 unguided_crash_dev = 1000.0*(10**3)   # The devitaion of the normal distribution for the unguided crash sites
 p_intact = 0.13 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
 #p_intact = 1.0 	# Probability that the type of crash left the plane relatively intact (1-Pr_destructive)
-p_debris_float = 0	# Proportion of debris that floats after an "intact" type crash
-p_guided_failure = 0.1 # Probability that a crash is guided (as opposed to unguided)
+#p_guided_failure = 0.50 # Probability that a crash is guided (as opposed to unguided)
+p_guided_failure = .10 # Probability that a crash is guided (as opposed to unguided)
 # Search vehicle params
 pr_sp_srfc = 0.90   # Probability that a search plane will spot crash debris in its area
 sp_alt = 400        # "Lowest Safe ALTitude" that a plane can fly (in meters)
 c_MAD = 3.435e-8    # constant to fit the MAD's functionality curve
 pr_sv_srfc = 0.66   # Probability that a search vessel will spot crash debris in its area
 pr_sv_snkn = 1.0    # Probability that a search vessel will detect sunken crash in its area
-sp_range = 8000.0*(10**3) # The operational range of a search plane (in meters)
+sp_range = 6390.0*(10**3) # The operational range of a search plane (in meters)
 sp_dist_per_area = 1000    # The distance that needs to be flown to search a 1km square area (in meters)
-sp_cost_tank_gas = 10000    # The cost of a tank of gas for a plane (in dollars)
-sb_cost_area = 500 # The cost for a boat to search a 1 square kilometer area (in dollars)
+sp_cost_tank_gas = 33476    # The cost of a tank of gas for a plane (in dollars)
+sb_cost_area = 34.34 # The cost for a boat to search a 1 square kilometer area (in dollars)
 
 def main():
 
@@ -87,8 +87,8 @@ def main():
     lat_max = 20
     lon_min = 90
     lon_max = 130
-    lat_res = 400 
-    lon_res = 400
+    lat_res = 300
+    lon_res = 300
 
     dim = Dimension_l(lat_min, lat_max, lat_res, lon_min, lon_max, lon_res)
     
@@ -122,14 +122,12 @@ def main():
     print("\n=== Evaluating problem\n")
 
     # Calculate costs
-    '''
     costs_sp = calc_costs_sp(dim_m, airports_m)
     costs_sb = calc_costs_sb(dim_m)
 
     init_vals = calc_init_values(dim_m, source_m, target_m, airports_m, m)
     sink_crash = p_intact * init_vals
     surface_crash = (1 - p_intact) * init_vals
-    '''
     
     # Useful things for later plotting
     (xSource, ySource) = m(source.lon, source.lat)
@@ -138,6 +136,23 @@ def main():
     aptCoords = [(p.lon, p.lat) for p in airports]
     aptCoords = np.array(aptCoords)
     xA, yA = m(aptCoords[:,0], aptCoords[:,1])
+
+    # Calculate the likelihood that a search plane finds a crash at
+    # each location
+    sp_find_prob = search_plane_probabilities(dim_m, surface_crash, sink_crash, depth_m)
+    sb_find_prob = search_vessel_probabilities(dim_m, surface_crash, sink_crash)
+        
+    # Calculate the price to search each area
+    price_per_prob_sp = costs_sp / sp_find_prob
+    price_per_prob_sb = costs_sb / sp_find_prob
+
+    sp_mean = price_per_prob_sp[np.where(np.logical_not(np.isinf(price_per_prob_sp)))].mean()
+    sb_mean = price_per_prob_sb[np.where(np.logical_not(np.isinf(price_per_prob_sb)))].mean()
+    print(sp_mean)  
+    print(sb_mean)  
+ 
+    price_per_prob_sp[np.where(np.isinf(price_per_prob_sp))] = sp_mean
+    price_per_prob_sb[np.where(np.isinf(price_per_prob_sb))] = sb_mean
     
     ## Plot
     # Set up the figure
@@ -151,10 +166,10 @@ def main():
     #m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
 
     # Draw the line representing the flight
-    #m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+    m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
 
     # Draw dots on airports
-    #m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
+    m.scatter(xA, yA, s=80, marker='^', color='purple', zorder=5)
 
 
     # Draw a contour map of costs
@@ -162,9 +177,12 @@ def main():
     x, y = m(lons, lats)
     #cs = m.contourf(x, y, depth_m, 50, cmap='Blues_r')
     #pc = m.pcolormesh(x, y, depth_m)
-    mag = np.sqrt(U_m*U_m + V_m*V_m)
-    pc = m.pcolormesh(x, y, mag, cmap='Blues_r')
-    #cbar = m.colorbar(pc,location='bottom',pad="5%")
+    print(price_per_prob_sp.max())
+    print(price_per_prob_sp.min())
+    pc = m.pcolormesh(x, y, price_per_prob_sb, cmap='YlOrRd_r',vmax=5e6)
+    #cbar = m.colorbar(pc,location='bottom',pad="5%", ticks = [0, init_vals.max()])
+    cbar = m.colorbar(pc,location='bottom',pad="5%")
+    #plt.title("Distribution of undirected crashes")
     plt.show()
     return
 
@@ -195,33 +213,32 @@ def main():
         price_per_prob_sp = costs_sp / sp_find_prob
         price_per_prob_sb = costs_sb / sp_find_prob
 
-        price_per_prob_sp = mask_vals(dim_m, price_per_prob_sp, m, fill=10000)
+        #price_per_prob_sp = mask_vals(dim_m, price_per_prob_sp, m, fill=10000)
         #print(price_per_prob_sp.min())
         #price_per_prob_sp[np.where(np.isinf(price_per_prob_sp))] = float('NaN')
         #print(price_per_prob_sp.max())
 
         # Plotting stuff
-        fig = plt.figure(figsize=(8,8))
-        
-        ax = fig.add_axes([0.1,0.1,0.8,0.8])    
-        m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
-        m.scatter(xA, yA, 30, marker='s', color='red', zorder=5)
-        
-        m.fillcontinents(zorder=1)
-        m.drawcoastlines()
-        m.drawcountries()
-        parallels = np.arange(0.,90,10.)
-        m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-        
-        #cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
-        #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmin = 0, vmax=maxInitProb)
-        cs = m.pcolormesh(x, y, price_per_prob_sp, cmap="YlOrRd", vmax=40000)
-        #cs = m.pcolormesh(x, y, depth_m, cmap="bone")
-        cbar = m.colorbar(cs,location='bottom',pad="5%")
-        #Q = m.quiver(x, y, U_m, V_m)
-        plt.show() 
-        plt.savefig("output/probs_"+str(iDay)+".png")
-        plt.close()
+        if(iDay % 5 == 0):
+            fig = plt.figure(figsize=(8,8))
+            
+            ax = fig.add_axes([0.1,0.1,0.8,0.8])    
+            m.plot([xSource, xTarget], [ySource, yTarget], lw=4, c='black', zorder=4)
+            m.scatter(xA, yA, s=80, marker='^', color='purple', zorder=5)
+            
+            m.fillcontinents(zorder=1)
+            m.drawcoastlines()
+            m.drawcountries()
+            parallels = np.arange(0.,90,10.)
+            m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
+            
+            #cs = m.contourf(x, y, curr_probs, 50, cmap="YlOrRd", vmin=0, vmax=maxInitProb)
+            #cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmin = 0, vmax=maxInitProb)
+            cs = m.pcolormesh(x, y, curr_probs, cmap="YlOrRd", vmax = maxInitProb)
+            #cs = m.pcolormesh(x, y, depth_m, cmap="bone")
+            cbar = m.colorbar(cs,location='bottom',pad="5%")
+            #Q = m.quiver(x, y, U_m, V_m)
+            plt.show() 
         
         # Update the probabilities
         surface_crash = apply_current_mapping(dim_m, surface_crash, current_mapping, m)
